@@ -1,4 +1,8 @@
-from inspect import signature
+from inspect import (
+    signature,
+    Parameter,
+    Signature
+    )
 
 def get_inputs(flow_elements):
     inputs = set()
@@ -62,7 +66,6 @@ def call_with_args(func, args_dict):
 
 def compose_flow(flow_elements):
     terminals, _ = get_terminals(flow_elements)
-    print(terminals)
     # later we can handle the cases of multiple terminal
     assert len(terminals) == 1, "flow must terminate in exactly 1 result"
     terminal_output = terminals[0].output
@@ -73,6 +76,11 @@ def compose_flow(flow_elements):
         for func in exec_order_funcs:
             args_dict[func.output] = call_with_args(func, args_dict)
         return args_dict[terminal_output]
+    f.inputs = arg_names
+    f.output = terminal_output
     f.flowable = True
-    # Add logic for making it a flow
+    f.__qualname__ = f"compute_{terminal_output}"
+    params = [Parameter(arg, Parameter.POSITIONAL_OR_KEYWORD)
+              for arg in arg_names]
+    f.__signature__ = Signature(params)
     return f
