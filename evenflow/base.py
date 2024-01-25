@@ -6,8 +6,6 @@ def flowable(output_name):
     Essential decorator
     """
     def flow_f(func):
-        # TODO: add check if already
-        # flowable then return
         def f(*args, **kwargs):
             val = func(*args, **kwargs)
             return val
@@ -20,3 +18,6 @@ def flowable(output_name):
         return f
     return flow_f
 
+def component_sub(components, component_update):
+    return [component for component in components
+            if not component.output == component_sub.output] + [component_sub]
