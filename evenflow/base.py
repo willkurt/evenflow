@@ -18,6 +18,6 @@ def flowable(output_name):
         return f
     return flow_f
 
-def component_sub(components, component_update):
+def flow_sub(components, component_update):
     return [component for component in components
-            if not component.output == component_sub.output] + [component_sub]
+            if not component.output == component_update.output] + [component_update]
