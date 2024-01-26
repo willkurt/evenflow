@@ -3,6 +3,7 @@ from inspect import (
     Parameter,
     Signature
     )
+from collections import defaultdict
 
 def get_inputs(flow_elements):
     inputs = set()
@@ -63,6 +64,71 @@ def call_with_args(func, args_dict):
         if k in params
     }
     return func(**kwargs)
+
+def get_nodes_children(dag):
+    nodes = {
+        node.output: node
+        for node in dag
+    }
+    children = defaultdict(list)
+    for node in dag:
+        for input in node.inputs:
+            children[input].append(node.output)
+    return nodes, children
+    
+def build_exectuion_stages(dag_components):
+    # I want a copy of this for now since
+    # I'll be using .pop() 
+    dag = [node for node in
+           flow_topo_sort(dag_components)]
+    nodes, children = get_nodes_children(dag)
+    seen = defaultdict(lambda: True)
+    start_nodes = top_level_args(dag)
+    # internal since it requires all these 
+    # variables
+    def group_nodes(node, group=[]):
+        # this need rethinking 
+        # case where one start input and
+        # one or more inputs
+        # for just this example we'll
+        # assume only 1 start
+        if node.output in seen:
+            result = group
+        elif all([input in start_nodes for input in node.inputs]):
+            seen[node.output]
+            result = [node] + group
+        elif len(node.inputs) > 1:
+            result = [node] + group
+        elif len(children[node.inputs[0]]) > 1:
+            seen[node.output]
+            result = [node] + group
+        else:
+            # at this point we must have only one parent
+            seen[node.output]
+            result = group_nodes(
+                nodes[node.inputs[0]],
+                [node]+group)
+        return result
+    # this section build the stages
+    # by walking the dag backwards
+    stages = []
+    while(len(dag)) > 0:
+        node = dag.pop()
+        stage = []
+        if node.output in seen:
+            continue
+        if all([input in start_nodes for input in node.inputs]):
+            stage.append(node)
+        elif len(node.inputs) >1:
+            for input in node.inputs:
+                stage.append(group_nodes(nodes[input]))
+        else:
+            stage.append(group_nodes(node))
+        stages.append(stage)
+    # the end up in reverse order
+    stages.reverse()
+    return stages   
+
 
 def compose_flow(flow_elements):
     terminals, _ = get_terminals(flow_elements)
