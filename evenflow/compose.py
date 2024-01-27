@@ -75,8 +75,8 @@ def get_nodes_children(dag):
         for input in node.inputs:
             children[input].append(node.output)
     return nodes, children
-    
-def build_exectuion_stages(dag_components):
+
+def build_execution_stages(dag_components):
     # I want a copy of this for now since
     # I'll be using .pop() 
     dag = [node for node in
@@ -84,6 +84,9 @@ def build_exectuion_stages(dag_components):
     nodes, children = get_nodes_children(dag)
     seen = defaultdict(lambda: True)
     start_nodes = top_level_args(dag)
+    def non_start_inputs(node):
+        return [val for val in node.inputs
+                if not val in start_nodes]
     # internal since it requires all these 
     # variables
     def group_nodes(node, group=[]):
@@ -95,19 +98,19 @@ def build_exectuion_stages(dag_components):
         if node.output in seen:
             result = group
         elif all([input in start_nodes for input in node.inputs]):
-            seen[node.output]
             result = [node] + group
-        elif len(node.inputs) > 1:
+        elif len(non_start_inputs(node)) > 1:
             result = [node] + group
-        elif len(children[node.inputs[0]]) > 1:
-            seen[node.output]
+        elif len(children[non_start_inputs(node)[0]]) > 1:
             result = [node] + group
         else:
             # at this point we must have only one parent
-            seen[node.output]
+            # and if you have one parent
+            # you can be rolled up with it.
             result = group_nodes(
-                nodes[node.inputs[0]],
+                nodes[non_start_inputs(node)[0]],
                 [node]+group)
+        seen[node.output]
         return result
     # this section build the stages
     # by walking the dag backwards
@@ -115,12 +118,12 @@ def build_exectuion_stages(dag_components):
     while(len(dag)) > 0:
         node = dag.pop()
         stage = []
-        if node.output in seen:
+        if (node.output in seen) and (len(non_start_inputs(node)) <= 1):
             continue
-        if all([input in start_nodes for input in node.inputs]):
-            stage.append(node)
-        elif len(node.inputs) >1:
-            for input in node.inputs:
+        elif len(non_start_inputs(node)) > 1:
+            if not node.output in seen:
+                stages.append([[node]])
+            for input in non_start_inputs(node):
                 stage.append(group_nodes(nodes[input]))
         else:
             stage.append(group_nodes(node))
