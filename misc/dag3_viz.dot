@@ -1,0 +1,95 @@
+digraph DAG3 {
+	fontname="Helvetica,Arial,sans-serif"
+	node [fontname="Helvetica,Arial,sans-serif"]
+	edge [fontname="Helvetica,Arial,sans-serif",color=gray,arrowsize=0.5]
+    label="Visualizing Even Flow Concurrent Execution Planning\nhttps://github.com/willkurt/evenflow"
+   subgraph cluster_1 {
+       color=gray;
+       node [color=black];
+       a;
+       b;
+       label = "stage #1";
+   }
+   subgraph cluster_2 {
+       color=gray
+       node [color=black];
+
+       label = "stage #2";
+       
+       subgraph cluster_group_1 {
+        color=black;
+        style=rounded;
+        d;
+        label="group 1";
+       }
+       subgraph cluster_group_2 {
+        color=black;
+        style=rounded;
+        e;
+        label="group 2";
+       }
+   }
+
+   subgraph cluster_3 {
+       color=gray;
+       node [color=black];
+       label = "stage #3";
+       subgraph cluster_group_1 {
+        color=black;
+        style=rounded;
+        g;
+        label="group 1";
+       }
+     subgraph cluster_group_2 {
+        color=black;
+        style=rounded;
+        f->h;
+        label="group 2";
+       }
+   }
+   subgraph cluster_4 {
+       color=gray;
+       node [color=black];
+       label = "stage #4";
+       
+       subgraph cluster_group_1 {
+        color=black;
+        style=rounded;
+        c;
+        label="group 1";
+       }
+       subgraph cluster_group_2 {
+        color=black;
+        style=rounded;
+        i;
+        label="group 2";
+       }
+   }
+
+   subgraph cluster_5 {
+       color=gray;
+       node [color=black];
+       label = "stage #5";
+       j
+   } 
+   
+       s_1 -> a;
+       s_2 -> b;
+       	a -> b;
+    b -> c;
+    b -> d;
+    b -> e;
+
+    b -> f;
+    c -> j;
+    d -> g;
+    e -> g;
+    g -> i;
+    h -> i;
+    i -> j;
+
+
+	s_1 [shape=Mdiamond];
+    s_2 [shape=Mdiamond];
+	j [shape=Msquare];
+}
