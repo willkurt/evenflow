@@ -255,4 +255,98 @@ def test_dag_3():
          \  |
            J
     """
-    assert(True)
+    @flowable('a')
+    def a(s_1):
+        return 'a'
+    @flowable('b')
+    def b(a,s_2):
+        return 'b'
+    @flowable('c')
+    def c(b):
+        return 'c'
+    @flowable('d')
+    def d(b):
+        return 'd'
+    @flowable('e')
+    def e(b):
+        return 'e'
+    @flowable('f')
+    def f(b):
+        return 'f'
+    @flowable('g')
+    def g(d,e):
+        return 'g'
+    @flowable('h')
+    def h(f):
+        return 'h'
+    @flowable('i')
+    def i(g, h):
+        return 'i'
+    @flowable('j')
+    def j(c,i):
+        return j
+    components = [a,b,c,d,e,f,g,h,i,j]
+    for perm in permutations(components):
+        sorted_perm = flow_topo_sort(perm)
+        assert sorted_perm.index(a) < sorted_perm.index(b)
+        assert sorted_perm.index(b) < sorted_perm.index(c)
+        assert sorted_perm.index(b) < sorted_perm.index(d)
+        assert sorted_perm.index(b) < sorted_perm.index(e)
+        assert sorted_perm.index(b) < sorted_perm.index(f)
+        comp_func = compose_flow(perm)
+        assert comp_func.inputs[0] == 's_1'
+        assert comp_func.output == 'f'
+        stages = build_execution_stages(components)
+        assert len(stages) == 3
+        for stage in stages:
+            assert isinstance(stage,list)
+            for group in stage:
+                assert isinstance(group,list)
+                for item in group:
+                    assert callable(item)
+        assert stages[0][0][0].inputs[0] == 's_1'
+        # oh are these also in the wrong order?!
+
+        assert stages[-1][-1][-1].output == 'f'
+
+# Concurrency tests
+def test_run_concur():
+    import time
+    from datetime import datetime
+    """
+        1
+       / \
+      2   3
+       \ /
+        4  
+    """
+    @flowable('x1')
+    def step1(s):
+        time.sleep(1)
+        return 1 + s
+
+    @flowable('x2')
+    def step2(x1):
+        time.sleep(1)
+        return 1 + x1
+
+    @flowable('x3')
+    def step3(x1):
+        time.sleep(1)
+        return 1 + x1
+
+    @flowable('x4')
+    def step4(x2,x3):
+        time.sleep(1)
+        return 1 + x2 + x3
+    
+
+    components = [step1,step2,step3,step4]
+    f_concur = compose_flow(components)
+    start_t = datetime.now()
+    result = f_concur(0)
+    end_t = datetime.now()
+    ts = (end_t - start_t).total_seconds()
+    assert result == 5
+    # only possible with concurreny happening
+    assert ts < 3.10
