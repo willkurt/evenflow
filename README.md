@@ -1,8 +1,8 @@
-# Even Flow: Creating Self-Organizing Python Functions
+# Even Flow: Creating Self-Organizing, Automatically Concurrent Python Agents
 
-"Thoughts arrive like butterflies..."
+"... thoughts arrive like butterflies."
 
-Even Flow is an attempt to create a framework for *self-organizing* python functions composed from a set of functions with clearly defined inputs and a single output. The programmer only has to concern themselves with defining tiny pieces of a larger program and `evenflow` will automatically compose that program in the form of another `flowable` function.
+Even Flow is an attempt to create a framework for *self-organizing* python functions composed from a set of functions with clearly defined inputs and a single output. Part of this self-organization is planning of current execution. The programmer only has to concern themselves with defining tiny pieces of a larger program and `evenflow` will automatically compose that program in the form of another `flowable` function.
 
 The original intent of this package was to create a framework for the compostion of **LLM Agents** but it turned out it works for simple python functions as well. Nonetheless the intent is that `evenflow` can open up the possibliy of **self-organizing collections of AI agents** that are easy to define and modify.
 
@@ -115,6 +115,99 @@ hello_world_fixed("sogol@daumal.net")
 
 While our example here is quite trivial, it's not hard to imagine a more complicated scenerio: replace our `say_hello` with a function that calls an LLM, and our `lookup_*` functions with seperate calls to databases passing information need for RAG `say_hello`. This would describe a simple RAG system while at the same time could be trivially implemented and expanded in Python. This simple example has shown that this lightweight framework is extremely extensable and requires little more from the programmer than mild annotations.
 
-## Future work
+## How Even Flow works
 
-This is **extremely WIP** and only serves right now to convey the basic idea. There are many ways this could be expanded and improved while maintaining this simple interface.
+Under the hood `evenflow` is building a **directect acyclic graph** (DAG) of functions and then performing a *planning* step which organizes them into **stages** each of which is made up of *concurrently executable* **groups**.
+
+### Flowable functions
+
+The `flowable` decorator adds some internal annotations to our functions so it's trivial to treat them like nodes in a graph. The annotations don't change the fundamental behavior of the functions, so you can still use them anywhere you might want in a regular Python program.
+
+### Building the DAG
+
+Here is an example collection of functions that we want to compose. These function don't do anything, they are just to demonstrate the dependencies created.
+
+```python
+""" Map of the dependency DAG
+        S_1  S_2
+         |    |
+         A    |
+          \  /
+         _ B
+       /  /|\ 
+      C  D E F
+      |  | | |
+      |  \ / |    
+      |   G  H
+       \   \ |
+        \   I
+         \  |
+           J
+"""
+    @flowable('a')
+    def a(s_1):
+        return 'a'
+    @flowable('b')
+    def b(a,s_2):
+        return 'b'
+    @flowable('c')
+    def c(b):
+        return 'c'
+    @flowable('d')
+    def d(b):
+        return 'd'
+    @flowable('e')
+    def e(b):
+        return 'e'
+    @flowable('f')
+    def f(b):
+        return 'f'
+    @flowable('g')
+    def g(d,e):
+        return 'g'
+    @flowable('h')
+    def h(f):
+        return 'h'
+    @flowable('i')
+    def i(g, h):
+        return 'i'
+    @flowable('j')
+    def j(c,i):
+        return 'j'
+    components = [d,e,f,a,b,c,g,h,i,j]
+```
+
+The image in the comment above lays out the DAG implied by the dependency among functions. It's important to note that the *programmer* of `evenflow` does not have to worry themselves with the construction of this DAG.
+
+Internally `evenflow` performs a *topological sort* of the nodes. The function that performs this internally is `evenflow.compose.flow_topo_sort`. In our example the components are intentionally mixed up, here we can see that `flow_topo_sort` rearranges these in the necessary order of execution (this is, by definition, what a topological sort does):
+
+```python
+> flow_topo_sort(components)
+[<function evenflow.base.a(s_1)>,
+ <function evenflow.base.b(a, s_2)>,
+ <function evenflow.base.d(b)>,
+ <function evenflow.base.e(b)>,
+ <function evenflow.base.f(b)>,
+ <function evenflow.base.c(b)>,
+ <function evenflow.base.g(d, e)>,
+ <function evenflow.base.h(f)>,
+ <function evenflow.base.i(g, h)>,
+ <function evenflow.base.j(c, i)>]
+
+```
+
+Now that they are in order we just have to execute these.
+
+### Sequential Execution
+
+Once the nodes have been sorted in topological order, then `evenflow` just has to manage passing a collection of shared arguments from the nodes in order. Wrapping all of this behavior in a dynamically defined function which is returned to the user after calling `compose_flow` makes it easy to work with this DAG as though it were an ordinary function.
+
+### Concurrent Execution
+
+The real magic of `evenflow` is not building the DAG, but planning the execution of the DAG so that it can be run concurrently. The DAG is broken down into *stages*, each stage is further broken down into 1 or more *groups*. Each group in a stage is *independant* of the others can so can be run concurrently.
+
+![execution diagram](./misc/dag3.png "Visualizing the execution order")
+
+Once `evenflow` has planned the execution stages it then uses a `ThreadPoolExecutor` to allow concurrency via Python's threads. The choice of using threads was to free the `evenflow` programmer from having to think about their programs concurrently. Just build out the piece you need and even flow will take care of the rest.
+
+The idea is that by focusing only on the individual tasks agents (or functions for that matter) perform, very complex systems can be designed from simple, easy to understand and debug, components.
