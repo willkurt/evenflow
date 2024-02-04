@@ -8,6 +8,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10"
 pytest = "^7.4.4"
+trio = "^0.24.0"
 
 
 [build-system]

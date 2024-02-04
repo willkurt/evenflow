@@ -4,6 +4,8 @@ from inspect import (
     Signature
     )
 from collections import defaultdict
+from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def get_inputs(flow_elements):
     inputs = set()
@@ -132,8 +134,51 @@ def build_execution_stages(dag_components):
     stages.reverse()
     return stages   
 
+def group_to_func(group):
+    def func(env):
+        for func in group:
+            env[func.output] = call_with_args(func, env)
+        return env
+    # don't think this needs to be flowable...
+    return func
+
+def execute_stage(stage, env):
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        # right now each stages is mutating the same dictionary..
+        # which seems wrong/risky
+        # maybe create a deep copy for each group?
+        result_env = deepcopy(env)
+        futures = [executor.submit(group_to_func(group), env) for group in stage]
+        for future in as_completed(futures):
+            result_env.update(future.result())
+    return result_env
+
+def execute_stages(stages, init_env):
+    for stage in stages:
+        init_env = execute_stage(stage, init_env)
+    return init_env
 
 def compose_flow(flow_elements):
+    terminals, _ = get_terminals(flow_elements)
+    # later we can handle the cases of multiple terminal
+    assert len(terminals) == 1, "flow must terminate in exactly 1 result"
+    terminal_output = terminals[0].output
+    arg_names = top_level_args(flow_elements)
+    stages = build_execution_stages(flow_elements)
+    def f(*args, **kwargs):
+        args_dict = unified_args(arg_names, args, kwargs)
+        args_dict = execute_stages(stages, args_dict)
+        return args_dict[terminal_output]
+    f.inputs = arg_names
+    f.output = terminal_output
+    f.flowable = True
+    f.__qualname__ = f"compute_{terminal_output}"
+    params = [Parameter(arg, Parameter.POSITIONAL_OR_KEYWORD)
+              for arg in arg_names]
+    f.__signature__ = Signature(params)
+    return f
+
+def _compose_flow(flow_elements):
     terminals, _ = get_terminals(flow_elements)
     # later we can handle the cases of multiple terminal
     assert len(terminals) == 1, "flow must terminate in exactly 1 result"
