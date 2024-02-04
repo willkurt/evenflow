@@ -352,3 +352,57 @@ def test_run_concur():
     assert result == 5
     # only possible with concurreny happening
     assert ts < 3.10
+
+
+def test_se_example():
+    import numpy as np
+    # Step 1
+    @flowable('sample_mean')
+    def calc_mean(samples):
+        return np.mean(samples)
+
+    # Step 2
+    @flowable('square_distance')
+    def calc_squares_distance(sample_mean, samples):
+        return (samples-sample_mean)**2
+
+    # Step 3
+    @flowable('sum_of_squares')
+    def calc_sum(square_distance):
+        return np.sum(square_distance)
+
+    # Step 4a - we'll need to get the n_samples (this will be useful in a bit)
+    @flowable('n_samples')
+    def calc_n_samples(samples):
+        return len(samples)
+
+    # Step 4b - This is just the calculation of the variance
+    @flowable('var')
+    def variance(sum_of_squares, n_samples):
+            return sum_of_squares/n_samples
+        
+    # Step 5 - This is just calcuating the standard deviation from the variance
+    @flowable('std_dev')
+    def standard_deviation(var):
+        return np.sqrt(var)
+
+    @flowable('json_resp')
+    def mock_endpoint(se):
+        import json
+        return json.dumps({
+            'standard_error': se
+        })
+
+    @flowable('se')
+    def standard_error(std_dev, n_samples):
+        return std_dev/np.sqrt(n_samples)
+
+    endpoint_components = [
+        mock_endpoint, calc_mean, calc_squares_distance, standard_error, 
+        calc_sum, calc_n_samples, variance, standard_deviation
+    ]
+
+    endpoint_v1 = compose_flow(endpoint_components)
+    import json
+    result = json.loads(endpoint_v1([1,2,3,4]))
+    assert np.abs(result['standard_error'] - 0.5590169943749475) < 0.01

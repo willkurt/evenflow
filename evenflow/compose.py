@@ -84,22 +84,25 @@ def build_execution_stages(dag_components):
     dag = [node for node in
            flow_topo_sort(dag_components)]
     nodes, children = get_nodes_children(dag)
-    seen = defaultdict(lambda: True)
+    seen = {}
     start_nodes = top_level_args(dag)
     def non_start_inputs(node):
         return [val for val in node.inputs
                 if not val in start_nodes]
     # internal since it requires all these 
     # variables
-    def group_nodes(node, group=[]):
+    def group_nodes(node, group,sid):
         # this need rethinking 
         # case where one start input and
         # one or more inputs
         # for just this example we'll
         # assume only 1 start
         if node.output in seen:
-            result = group
-        elif all([input in start_nodes for input in node.inputs]):
+            return group
+        if(len(children[node.output]) > 1):
+            if any([seen.get(child,sid+1) >= sid for child in children[node.output]]):
+                return group
+        if all([input in start_nodes for input in node.inputs]):
             result = [node] + group
         elif len(non_start_inputs(node)) > 1:
             result = [node] + group
@@ -111,12 +114,13 @@ def build_execution_stages(dag_components):
             # you can be rolled up with it.
             result = group_nodes(
                 nodes[non_start_inputs(node)[0]],
-                [node]+group)
-        seen[node.output]
+                [node]+group, sid)
+        seen[node.output] = sid
         return result
     # this section build the stages
     # by walking the dag backwards
     stages = []
+    stage_id = 0
     while(len(dag)) > 0:
         node = dag.pop()
         stage = []
@@ -125,14 +129,17 @@ def build_execution_stages(dag_components):
         elif len(non_start_inputs(node)) > 1:
             if not node.output in seen:
                 stages.append([[node]])
+                seen[node.output] = stage_id
+                stage_id += 1
             for input in non_start_inputs(node):
-                stage.append(group_nodes(nodes[input]))
+                stage.append(group_nodes(nodes[input],[],stage_id))
         else:
-            stage.append(group_nodes(node))
+            stage.append(group_nodes(node,[],stage_id))
         stages.append(stage)
+        stage_id += 1
     # the end up in reverse order
     stages.reverse()
-    return stages   
+    return stages
 
 def group_to_func(group):
     def func(env):
